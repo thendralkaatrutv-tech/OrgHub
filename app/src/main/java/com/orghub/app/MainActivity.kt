@@ -7,6 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -24,9 +26,66 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         db = ReminderDatabase.get(this)
-        checkPermissions()
+        requestAllPermissions()
         setupUI()
         loadReminders()
+    }
+
+    private fun requestAllPermissions() {
+        // Step 1: Exact alarm permission
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val am = getSystemService(ALARM_SERVICE) as AlarmManager
+            if (!am.canScheduleExactAlarms()) {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Permission Required")
+                    .setMessage("OrgHub needs Alarm permission to remind you on time. Please allow it.")
+                    .setPositiveButton("Allow") { _, _ ->
+                        startActivity(Intent(
+                            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                            Uri.parse("package:$packageName")))
+                    }
+                    .setCancelable(false)
+                    .show()
+                return
+            }
+        }
+
+        // Step 2: Battery optimization
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Battery Permission Required")
+                .setMessage("OrgHub needs to run in background to remind you. Please tap Allow and select 'Allow' for OrgHub.")
+                .setPositiveButton("Allow") { _, _ ->
+                    try {
+                        startActivity(Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:$packageName")))
+                    } catch (e: Exception) {
+                        startActivity(Intent(
+                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }
+                .setCancelable(false)
+                .show()
+            return
+        }
+
+        // Step 3: Notification permission Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadReminders()
+        // Re-check permissions each time user comes back
+        requestAllPermissions()
     }
 
     private fun setupUI() {
@@ -39,9 +98,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun highlightTab(activeSelected: Boolean) {
         findViewById<TextView>(R.id.tabActive).setBackgroundColor(
-            if (activeSelected) getColor(R.color.olive) else getColor(R.color.dark_surface))
+            if (activeSelected) getColor(R.color.olive)
+            else getColor(R.color.dark_surface))
         findViewById<TextView>(R.id.tabHistory).setBackgroundColor(
-            if (!activeSelected) getColor(R.color.olive) else getColor(R.color.dark_surface))
+            if (!activeSelected) getColor(R.color.olive)
+            else getColor(R.color.dark_surface))
     }
 
     private fun showAddDialog() {
@@ -84,7 +145,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val dialog = android.app.AlertDialog.Builder(this)
+        android.app.AlertDialog.Builder(this)
             .setView(view)
             .setPositiveButton("Save") { _, _ ->
                 val subject = etSubject.text.toString().trim()
@@ -100,8 +161,7 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .create()
-
-        dialog.show()
+            .show()
     }
 
     private fun saveReminder(subject: String) {
@@ -118,7 +178,7 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 val fmt = SimpleDateFormat("dd-MMM-yyyy hh:mm a", Locale.getDefault())
                 Toast.makeText(this,
-                    "Reminder set for ${fmt.format(Date(selectedTime.timeInMillis))} ✅",
+                    "✅ Reminder set for ${fmt.format(Date(selectedTime.timeInMillis))}",
                     Toast.LENGTH_LONG).show()
                 loadReminders()
             }
@@ -175,21 +235,5 @@ class MainActivity : AppCompatActivity() {
             }
             container.addView(row)
         }
-    }
-
-    private fun checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val am = getSystemService(ALARM_SERVICE) as AlarmManager
-            if (!am.canScheduleExactAlarms()) {
-                startActivity(Intent(
-                    android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                    Uri.parse("package:$packageName")))
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        loadReminders()
     }
 }
