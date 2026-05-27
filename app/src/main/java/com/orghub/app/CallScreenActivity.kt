@@ -1,13 +1,17 @@
 package com.orghub.app
 
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,6 +47,14 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         gender = intent.getStringExtra("GENDER") ?: "female"
         speed = intent.getFloatExtra("SPEED", 1.0f)
 
+        // Set volume to max for alarm
+        val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+        audio.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+            0
+        )
+
         setupUI()
         tts = TextToSpeech(this, this)
     }
@@ -52,33 +64,35 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         findViewById<TextView>(R.id.tvDateTime).text = fmt.format(Date()).uppercase()
         findViewById<TextView>(R.id.tvSubject).text = subject
 
-        // Accept button
-        findViewById<android.view.View>(R.id.btnAccept).setOnClickListener {
+        // Show incoming screen
+        findViewById<View>(R.id.layoutIncoming).visibility = View.VISIBLE
+        findViewById<View>(R.id.layoutActive).visibility = View.GONE
+
+        // Accept
+        findViewById<View>(R.id.btnAccept).setOnClickListener {
             onAccepted()
         }
 
-        // Mute button
-        findViewById<ImageButton>(R.id.btnMute).setOnClickListener {
+        // Mute
+        val btnMute = findViewById<ImageButton>(R.id.btnMute)
+        btnMute.setOnClickListener {
             muted = !muted
-            if (muted) {
-                tts?.stop()
-            } else {
-                if (!paused) speak()
-            }
+            btnMute.alpha = if (muted) 0.5f else 1.0f
+            if (muted) tts?.stop()
+            else if (!paused) speak()
         }
 
-        // Pause button
-        findViewById<ImageButton>(R.id.btnPause).setOnClickListener {
+        // Pause
+        val btnPause = findViewById<ImageButton>(R.id.btnPause)
+        btnPause.setOnClickListener {
             paused = !paused
-            if (paused) {
-                tts?.stop()
-            } else {
-                if (!muted) speak()
-            }
+            btnPause.alpha = if (paused) 0.5f else 1.0f
+            if (paused) tts?.stop()
+            else if (!muted) speak()
         }
 
-        // Hang up button
-        findViewById<android.view.View>(R.id.btnHangUp).setOnClickListener {
+        // Hang up
+        findViewById<View>(R.id.btnHangUp).setOnClickListener {
             hangUp()
         }
     }
@@ -86,50 +100,50 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun onAccepted() {
         accepted = true
 
-        // ✅ STOP RINGTONE FIRST!
+        // Stop ringtone immediately
         stopService(Intent(this, ReminderService::class.java))
 
-        // Show active layout
-        findViewById<android.view.View>(R.id.layoutIncoming).visibility = 
-            android.view.View.GONE
-        findViewById<android.view.View>(R.id.layoutActive).visibility = 
-            android.view.View.VISIBLE
+        // Switch UI
+        findViewById<View>(R.id.layoutIncoming).visibility = View.GONE
+        findViewById<View>(R.id.layoutActive).visibility = View.VISIBLE
 
-        // Start TTS after short delay
-        // so ringtone fully stops first
-        android.os.Handler(mainLooper).postDelayed({
-            if (tts != null) speak()
-        }, 500)
+        // Start TTS after delay
+        Handler(Looper.getMainLooper()).postDelayed({
+            speak()
+        }, 800)
     }
 
     private fun speak() {
-        if (muted || paused || !accepted) return
+        if (!accepted || muted || paused) return
+
         val msg = "Hey! Important reminder! " +
-                "You asked me to remind you about... $subject! " +
+                "You asked me to remind you about $subject! " +
                 "Please don't forget! " +
-                "Again... You asked me to remind you about $subject!"
+                "Again! $subject!"
+
         tts?.setSpeechRate(speed)
-        tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "orghub")
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) {}
             override fun onDone(id: String?) {
-                if (accepted && !paused && !muted) {
-                    runOnUiThread {
-                        android.os.Handler(mainLooper).postDelayed({
-                            speak()
-                        }, 1000)
-                    }
+                if (accepted && !muted && !paused) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        speak()
+                    }, 1000)
                 }
             }
             override fun onError(id: String?) {}
         })
+        tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "orghub_tts")
     }
 
     private fun hangUp() {
+        accepted = false
         tts?.stop()
         tts?.shutdown()
         tts = null
-        stopService(Intent(this, ReminderService::class.java))
+        try {
+            stopService(Intent(this, ReminderService::class.java))
+        } catch (e: Exception) { }
         if (!accepted) {
             AlarmScheduler.snooze(this, reminderId, subject, gender, speed)
         }
@@ -140,19 +154,20 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) {
             tts?.language = Locale.US
             tts?.setSpeechRate(speed)
+            // Auto speak if already accepted
+            if (accepted) speak()
         }
     }
 
     override fun onBackPressed() {
-        AlarmScheduler.snooze(this, reminderId, subject, gender, speed)
-        tts?.stop()
-        tts?.shutdown()
-        stopService(Intent(this, ReminderService::class.java))
-        finish()
+        hangUp()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        tts?.shutdown()
+        try {
+            tts?.stop()
+            tts?.shutdown()
+        } catch (e: Exception) { }
     }
 }
