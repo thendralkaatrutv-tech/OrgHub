@@ -72,21 +72,26 @@ class ReminderService : Service() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(CHANNEL_ID, "OrgHub Reminders",
-                NotificationManager.IMPORTANCE_HIGH).apply {
+            val ch = NotificationChannel(
+                CHANNEL_ID, "OrgHub Reminders",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
+            getSystemService(NotificationManager::class.java)
+                .createNotificationChannel(ch)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).cancel()
-        } else {
-            @Suppress("DEPRECATION")
-            (getSystemService(VIBRATOR_SERVICE) as Vibrator).cancel()
-        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).cancel()
+            } else {
+                @Suppress("DEPRECATION")
+                (getSystemService(VIBRATOR_SERVICE) as Vibrator).cancel()
+            }
+        } catch (e: Exception) { }
     }
 }
