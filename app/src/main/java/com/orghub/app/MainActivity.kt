@@ -26,19 +26,49 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         db = ReminderDatabase.get(this)
-        requestAllPermissions()
+        startWatchdog()
+        requestPermissions()
         setupUI()
         loadReminders()
     }
 
-    private fun requestAllPermissions() {
-        // Step 1: Exact alarm permission
+    private fun startWatchdog() {
+        // Start background watchdog service
+        val intent = Intent(this, WatchdogService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+    }
+
+    private fun requestPermissions() {
+        // Battery optimization
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Important Permission")
+                .setMessage("OrgHub needs to run in background to remind you on time.\n\nPlease tap 'Allow' on next screen to enable this.")
+                .setPositiveButton("Allow") { _, _ ->
+                    try {
+                        startActivity(Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:$packageName")))
+                    } catch (e: Exception) {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    }
+                }
+                .setCancelable(false)
+                .show()
+        }
+
+        // Exact alarm permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = getSystemService(ALARM_SERVICE) as AlarmManager
             if (!am.canScheduleExactAlarms()) {
                 android.app.AlertDialog.Builder(this)
-                    .setTitle("Permission Required")
-                    .setMessage("OrgHub needs Alarm permission to remind you on time. Please allow it.")
+                    .setTitle("Alarm Permission")
+                    .setMessage("OrgHub needs Alarm permission to remind you at exact time.")
                     .setPositiveButton("Allow") { _, _ ->
                         startActivity(Intent(
                             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
@@ -46,63 +76,33 @@ class MainActivity : AppCompatActivity() {
                     }
                     .setCancelable(false)
                     .show()
-                return
             }
         }
 
-        // Step 2: Battery optimization
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Battery Permission Required")
-                .setMessage("OrgHub needs to run in background to remind you. Please tap Allow and select 'Allow' for OrgHub.")
-                .setPositiveButton("Allow") { _, _ ->
-                    try {
-                        startActivity(Intent(
-                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                            Uri.parse("package:$packageName")))
-                    } catch (e: Exception) {
-                        startActivity(Intent(
-                            Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                    }
-                }
-                .setCancelable(false)
-                .show()
-            return
-        }
-
-        // Step 3: Notification permission Android 13+
+        // Notification permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
             }
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        loadReminders()
-        // Re-check permissions each time user comes back
-        requestAllPermissions()
-    }
-
     private fun setupUI() {
-        val tabActive = findViewById<TextView>(R.id.tabActive)
-        val tabHistory = findViewById<TextView>(R.id.tabHistory)
-        tabActive.setOnClickListener { loadReminders(); highlightTab(true) }
-        tabHistory.setOnClickListener { loadHistory(); highlightTab(false) }
+        findViewById<TextView>(R.id.tabActive).setOnClickListener {
+            loadReminders(); highlightTab(true)
+        }
+        findViewById<TextView>(R.id.tabHistory).setOnClickListener {
+            loadHistory(); highlightTab(false)
+        }
         findViewById<View>(R.id.fabAdd).setOnClickListener { showAddDialog() }
     }
 
     private fun highlightTab(activeSelected: Boolean) {
         findViewById<TextView>(R.id.tabActive).setBackgroundColor(
-            if (activeSelected) getColor(R.color.olive)
-            else getColor(R.color.dark_surface))
+            if (activeSelected) getColor(R.color.olive) else getColor(R.color.dark_surface))
         findViewById<TextView>(R.id.tabHistory).setBackgroundColor(
-            if (!activeSelected) getColor(R.color.olive)
-            else getColor(R.color.dark_surface))
+            if (!activeSelected) getColor(R.color.olive) else getColor(R.color.dark_surface))
     }
 
     private fun showAddDialog() {
@@ -111,15 +111,13 @@ class MainActivity : AppCompatActivity() {
         val tvTime = view.findViewById<TextView>(R.id.tvSelectedTime)
         val rgGender = view.findViewById<RadioGroup>(R.id.rgGender)
         val rgSpeed = view.findViewById<RadioGroup>(R.id.rgSpeed)
-        val btnPickTime = view.findViewById<Button>(R.id.btnPickTime)
 
         selectedTime = Calendar.getInstance()
         selectedTime.add(Calendar.MINUTE, 5)
-
         val fmt = SimpleDateFormat("dd-MMM-yyyy hh:mm a", Locale.getDefault())
         tvTime.text = fmt.format(selectedTime.time)
 
-        btnPickTime.setOnClickListener {
+        view.findViewById<Button>(R.id.btnPickTime).setOnClickListener {
             DatePickerDialog(this, { _, y, m, d ->
                 selectedTime.set(y, m, d)
                 TimePickerDialog(this, { _, h, min ->
@@ -150,18 +148,17 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val subject = etSubject.text.toString().trim()
                 if (subject.isEmpty()) {
-                    Toast.makeText(this, "Enter subject!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Enter reminder subject!", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 if (selectedTime.timeInMillis <= System.currentTimeMillis()) {
-                    Toast.makeText(this, "Pick future time!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Please pick a future time!", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 saveReminder(subject)
             }
             .setNegativeButton("Cancel", null)
-            .create()
-            .show()
+            .create().show()
     }
 
     private fun saveReminder(subject: String) {
@@ -228,12 +225,23 @@ class MainActivity : AppCompatActivity() {
             }
             row.findViewById<ImageButton>(R.id.btnDelete).setOnClickListener {
                 Thread {
+                    // Cancel alarm AND mark cancelled in DB
                     AlarmScheduler.cancel(this, reminder.id)
-                    db.dao().deleteById(reminder.id)
+                    db.dao().markCancelled(reminder.id)
+                    // Stop service if currently ringing this reminder
+                    if (ReminderService.currentReminderId == reminder.id) {
+                        stopService(Intent(this, ReminderService::class.java))
+                    }
                     runOnUiThread { loadReminders() }
                 }.start()
             }
             container.addView(row)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        startWatchdog()
+        loadReminders()
     }
 }

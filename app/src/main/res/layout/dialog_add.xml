@@ -3,52 +3,53 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#FF111118">
+    android:padding="20dp"
+    android:background="@color/dark_surface">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Add Reminder"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
+        android:textColor="@color/white"
+        android:textSize="20sp"
         android:textStyle="bold"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="16dp" />
 
     <EditText
         android:id="@+id/etSubject"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Reminder subject..."
-        android:textColor="#FFFFFF"
-        android:textColorHint="#888899"
+        android:textColor="@color/white"
+        android:textColorHint="@color/grey"
+        android:background="@android:drawable/editbox_background"
         android:padding="10dp"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="16dp" />
 
     <Button
         android:id="@+id/btnPickTime"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:text="Pick Date and Time"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#FF2196F3"
-        android:layout_marginBottom="6dp" />
+        android:layout_height="48dp"
+        android:text="Pick Date &amp; Time"
+        android:textColor="@color/white"
+        android:backgroundTint="@color/blue_btn"
+        android:layout_marginBottom="8dp" />
 
     <TextView
         android:id="@+id/tvSelectedTime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="No time selected"
-        android:textColor="#888899"
-        android:textSize="13sp"
+        android:textColor="@color/grey"
+        android:textSize="14sp"
         android:gravity="center"
-        android:layout_marginBottom="12dp" />
+        android:layout_marginBottom="16dp" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Voice:"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/white"
         android:textSize="14sp" />
 
     <RadioGroup
@@ -56,24 +57,24 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="12dp">
 
         <RadioButton
             android:id="@+id/rbFemale"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Female"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:checked="true" />
 
         <RadioButton
             android:id="@+id/rbMale"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Male"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/white" />
 
     </RadioGroup>
 
@@ -81,7 +82,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Speed:"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/white"
         android:textSize="14sp" />
 
     <RadioGroup
@@ -93,27 +94,27 @@
         <RadioButton
             android:id="@+id/rbSlow"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Slow"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/white" />
 
         <RadioButton
             android:id="@+id/rbNormal"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Normal"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/white"
             android:checked="true" />
 
         <RadioButton
             android:id="@+id/rbFast"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="Fast"
-            android:textColor="#FFFFFF" />
+            android:textColor="@color/white" />
 
     </RadioGroup>
 

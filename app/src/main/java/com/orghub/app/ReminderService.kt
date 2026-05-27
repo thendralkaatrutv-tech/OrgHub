@@ -12,8 +12,10 @@ import androidx.core.app.NotificationCompat
 class ReminderService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "orghub_channel"
+        const val CHANNEL_ID = "orghub_reminder"
         const val NOTIF_ID = 101
+        var isRinging = false
+        var currentReminderId = -1
     }
 
     private var mediaPlayer: MediaPlayer? = null
@@ -27,14 +29,22 @@ class ReminderService : Service() {
         val gender = intent?.getStringExtra("GENDER") ?: "female"
         val speed = intent?.getFloatExtra("SPEED", 1.0f) ?: 1.0f
 
+        // Don't ring if already ringing same reminder
+        if (isRinging && currentReminderId == id) return START_NOT_STICKY
+
+        isRinging = true
+        currentReminderId = id
+
         createChannel()
         startForeground(NOTIF_ID, buildNotification(subject))
         startRingtone()
         startVibration()
 
+        // Launch call screen
         val callIntent = Intent(this, CallScreenActivity::class.java)
         callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         callIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        callIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         callIntent.putExtra("ID", id)
         callIntent.putExtra("SUBJECT", subject)
         callIntent.putExtra("GENDER", gender)
@@ -46,9 +56,9 @@ class ReminderService : Service() {
 
     private fun startRingtone() {
         try {
-            val ringtoneUri = RingtoneManager.getDefaultUri(
-                RingtoneManager.TYPE_RINGTONE
-            )
+            stopRingtone()
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             mediaPlayer = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -57,51 +67,48 @@ class ReminderService : Service() {
                         .setLegacyStreamType(AudioManager.STREAM_ALARM)
                         .build()
                 )
-                setDataSource(applicationContext, ringtoneUri)
+                setDataSource(applicationContext, uri)
                 isLooping = true
                 prepare()
                 start()
             }
         } catch (e: Exception) {
-            // Fallback to notification ringtone
-            try {
-                val ringtoneUri = RingtoneManager.getDefaultUri(
-                    RingtoneManager.TYPE_ALARM
-                )
-                mediaPlayer = MediaPlayer().apply {
-                    setDataSource(applicationContext, ringtoneUri)
-                    isLooping = true
-                    prepare()
-                    start()
-                }
-            } catch (e2: Exception) {
-                e2.printStackTrace()
-            }
+            e.printStackTrace()
         }
     }
 
+    private fun stopRingtone() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+        } catch (e: Exception) { }
+    }
+
     private fun startVibration() {
-        val pattern = longArrayOf(0, 800, 400, 800, 400)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vm = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
-            vibrator = vm.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(pattern, 0)
-        }
+        try {
+            val pattern = longArrayOf(0, 1000, 500, 1000, 500)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                vibrator = (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager)
+                    .defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0)
+            }
+        } catch (e: Exception) { }
     }
 
     private fun buildNotification(subject: String): Notification {
         val pi = PendingIntent.getActivity(
             this, 0,
             Intent(this, CallScreenActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
@@ -116,26 +123,19 @@ class ReminderService : Service() {
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val ch = NotificationChannel(
-                CHANNEL_ID, "OrgHub Reminders",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
+            val ch = NotificationChannel(CHANNEL_ID, "OrgHub Reminders",
+                NotificationManager.IMPORTANCE_HIGH).apply {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(ch)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(ch)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-        } catch (e: Exception) { }
-        try {
-            vibrator?.cancel()
-        } catch (e: Exception) { }
+        isRinging = false
+        currentReminderId = -1
+        stopRingtone()
+        try { vibrator?.cancel() } catch (e: Exception) { }
     }
 }

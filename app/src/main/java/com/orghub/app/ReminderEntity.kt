@@ -11,5 +11,6 @@ data class ReminderEntity(
     val timeInMillis: Long,
     val voiceGender: String = "female",
     val voiceSpeed: Float = 1.0f,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val isCancelled: Boolean = false
 )

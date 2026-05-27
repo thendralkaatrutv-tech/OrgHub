@@ -4,7 +4,8 @@ import androidx.room.*
 
 @Dao
 interface ReminderDao {
-    @Query("SELECT * FROM reminders WHERE isCompleted = 0 ORDER BY timeInMillis ASC")
+
+    @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND isCancelled = 0 ORDER BY timeInMillis ASC")
     fun getActiveReminders(): List<ReminderEntity>
 
     @Query("SELECT * FROM reminders WHERE isCompleted = 1 ORDER BY timeInMillis DESC")
@@ -22,6 +23,9 @@ interface ReminderDao {
     @Query("UPDATE reminders SET isCompleted = 1 WHERE id = :id")
     fun markDone(id: Int)
 
-    @Query("SELECT * FROM reminders WHERE isCompleted = 0")
+    @Query("UPDATE reminders SET isCancelled = 1 WHERE id = :id")
+    fun markCancelled(id: Int)
+
+    @Query("SELECT * FROM reminders WHERE isCompleted = 0 AND isCancelled = 0")
     fun getAllActive(): List<ReminderEntity>
 }
