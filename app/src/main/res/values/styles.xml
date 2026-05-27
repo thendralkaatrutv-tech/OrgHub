@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">#FF8B9A2A</item>
+        <item name="colorPrimaryDark">#FF000000</item>
+        <item name="colorAccent">#FF2196F3</item>
+        <item name="android:windowBackground">#FF000000</item>
+    </style>
+
+    <style name="CallTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#FF0A0A2E</item>
+    </style>
+
+    <style name="DialogTheme" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowBackground">#FF111118</item>
+        <item name="colorPrimary">#FF8B9A2A</item>
+        <item name="colorAccent">#FF2196F3</item>
+    </style>
+</resources>
