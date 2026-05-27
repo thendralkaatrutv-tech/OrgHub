@@ -24,13 +24,13 @@ class ReminderService : Service() {
         startForeground(NOTIF_ID, buildNotification(subject))
         startVibration()
 
-        val callIntent = Intent(this, CallScreenActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("ID", id)
-            putExtra("SUBJECT", subject)
-            putExtra("GENDER", gender)
-            putExtra("SPEED", speed)
-        }
+        val callIntent = Intent(this, CallScreenActivity::class.java)
+        callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        callIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        callIntent.putExtra("ID", id)
+        callIntent.putExtra("SUBJECT", subject)
+        callIntent.putExtra("GENDER", gender)
+        callIntent.putExtra("SPEED", speed)
         startActivity(callIntent)
 
         return START_NOT_STICKY
