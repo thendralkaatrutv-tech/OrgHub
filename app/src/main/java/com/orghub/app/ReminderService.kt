@@ -2,6 +2,10 @@ package com.orghub.app
 
 import android.app.*
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.media.RingtoneManager
 import android.os.*
 import androidx.core.app.NotificationCompat
 
@@ -11,6 +15,9 @@ class ReminderService : Service() {
         const val CHANNEL_ID = "orghub_channel"
         const val NOTIF_ID = 101
     }
+
+    private var mediaPlayer: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
 
     override fun onBind(intent: Intent?) = null
 
@@ -22,6 +29,7 @@ class ReminderService : Service() {
 
         createChannel()
         startForeground(NOTIF_ID, buildNotification(subject))
+        startRingtone()
         startVibration()
 
         val callIntent = Intent(this, CallScreenActivity::class.java)
@@ -36,20 +44,56 @@ class ReminderService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun startRingtone() {
+        try {
+            val ringtoneUri = RingtoneManager.getDefaultUri(
+                RingtoneManager.TYPE_RINGTONE
+            )
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setLegacyStreamType(AudioManager.STREAM_ALARM)
+                        .build()
+                )
+                setDataSource(applicationContext, ringtoneUri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            // Fallback to notification ringtone
+            try {
+                val ringtoneUri = RingtoneManager.getDefaultUri(
+                    RingtoneManager.TYPE_ALARM
+                )
+                mediaPlayer = MediaPlayer().apply {
+                    setDataSource(applicationContext, ringtoneUri)
+                    isLooping = true
+                    prepare()
+                    start()
+                }
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+            }
+        }
+    }
+
     private fun startVibration() {
         val pattern = longArrayOf(0, 800, 400, 800, 400)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vm = getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager
-            vm.defaultVibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            vibrator = vm.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
-            val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                v.vibrate(VibrationEffect.createWaveform(pattern, 0))
-            } else {
-                @Suppress("DEPRECATION")
-                v.vibrate(pattern, 0)
-            }
+            vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(pattern, 0)
         }
     }
 
@@ -86,12 +130,12 @@ class ReminderService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (getSystemService(VIBRATOR_MANAGER_SERVICE) as VibratorManager).cancel()
-            } else {
-                @Suppress("DEPRECATION")
-                (getSystemService(VIBRATOR_SERVICE) as Vibrator).cancel()
-            }
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
+        } catch (e: Exception) { }
+        try {
+            vibrator?.cancel()
         } catch (e: Exception) { }
     }
 }
