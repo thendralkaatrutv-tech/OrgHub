@@ -26,7 +26,6 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Show on lock screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -53,24 +52,32 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         findViewById<TextView>(R.id.tvDateTime).text = fmt.format(Date()).uppercase()
         findViewById<TextView>(R.id.tvSubject).text = subject
 
-        // Accept button - swipe up to accept
+        // Accept button
         findViewById<android.view.View>(R.id.btnAccept).setOnClickListener {
             onAccepted()
         }
 
-        // Mute
+        // Mute button
         findViewById<ImageButton>(R.id.btnMute).setOnClickListener {
             muted = !muted
-            if (muted) tts?.stop() else if (!paused) speak()
+            if (muted) {
+                tts?.stop()
+            } else {
+                if (!paused) speak()
+            }
         }
 
-        // Pause
+        // Pause button
         findViewById<ImageButton>(R.id.btnPause).setOnClickListener {
             paused = !paused
-            if (paused) tts?.stop() else if (!muted) speak()
+            if (paused) {
+                tts?.stop()
+            } else {
+                if (!muted) speak()
+            }
         }
 
-        // Hang up
+        // Hang up button
         findViewById<android.view.View>(R.id.btnHangUp).setOnClickListener {
             hangUp()
         }
@@ -78,21 +85,40 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun onAccepted() {
         accepted = true
-        findViewById<android.view.View>(R.id.layoutIncoming).visibility = android.view.View.GONE
-        findViewById<android.view.View>(R.id.layoutActive).visibility = android.view.View.VISIBLE
-        if (tts != null) speak()
+
+        // ✅ STOP RINGTONE FIRST!
+        stopService(Intent(this, ReminderService::class.java))
+
+        // Show active layout
+        findViewById<android.view.View>(R.id.layoutIncoming).visibility = 
+            android.view.View.GONE
+        findViewById<android.view.View>(R.id.layoutActive).visibility = 
+            android.view.View.VISIBLE
+
+        // Start TTS after short delay
+        // so ringtone fully stops first
+        android.os.Handler(mainLooper).postDelayed({
+            if (tts != null) speak()
+        }, 500)
     }
 
     private fun speak() {
-        val msg = "Hey! Important reminder! You asked me to remind you about... $subject! " +
-                  "Please don't forget! Again... $subject!"
+        if (muted || paused || !accepted) return
+        val msg = "Hey! Important reminder! " +
+                "You asked me to remind you about... $subject! " +
+                "Please don't forget! " +
+                "Again... You asked me to remind you about $subject!"
         tts?.setSpeechRate(speed)
         tts?.speak(msg, TextToSpeech.QUEUE_FLUSH, null, "orghub")
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) {}
             override fun onDone(id: String?) {
                 if (accepted && !paused && !muted) {
-                    runOnUiThread { speak() }
+                    runOnUiThread {
+                        android.os.Handler(mainLooper).postDelayed({
+                            speak()
+                        }, 1000)
+                    }
                 }
             }
             override fun onError(id: String?) {}
@@ -102,6 +128,7 @@ class CallScreenActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun hangUp() {
         tts?.stop()
         tts?.shutdown()
+        tts = null
         stopService(Intent(this, ReminderService::class.java))
         if (!accepted) {
             AlarmScheduler.snooze(this, reminderId, subject, gender, speed)
